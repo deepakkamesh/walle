@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
-	"walle"
-	"walle/assistant"
-	"walle/audio"
 
+	"github.com/deepakkamesh/walle"
+	"github.com/deepakkamesh/walle/assistant"
+	"github.com/deepakkamesh/walle/audio"
 	"github.com/golang/glog"
 )
 
@@ -19,7 +19,7 @@ func main() {
 	aud := audio.New()
 
 	// Initialize Google Assistant.
-	ai := assistant.New(aud.Out, aud.In, *secretsFile, *assistantScope)
+	ai := assistant.New(aud, *secretsFile, *assistantScope)
 
 	// Build config for Walle.
 	config := &walle.WallEConfig{

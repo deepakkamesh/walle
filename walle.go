@@ -3,9 +3,9 @@ package walle
 import (
 	"bufio"
 	"os"
-	"walle/assistant"
-	"walle/audio"
 
+	"github.com/deepakkamesh/walle/assistant"
+	"github.com/deepakkamesh/walle/audio"
 	"github.com/golang/glog"
 )
 
@@ -29,7 +29,8 @@ func New(c *WallEConfig) *WallE {
 
 func (s *WallE) Run() {
 
-	s.audio.Run()
+	s.audio.StartPlayback()
+
 	if err := s.gAssistant.Auth(); err != nil {
 		glog.Fatalf("Failed to authenticate assistant: %v", err)
 	}

@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/deepakkamesh/walle/audio"
 	"github.com/golang/glog"
 
 	"google.golang.org/api/option"
@@ -40,19 +41,17 @@ type JSONToken struct {
 }
 
 type GAssistant struct {
-	audOut      chan bytes.Buffer
-	audIn       chan bytes.Buffer
+	audio       *audio.Audio
 	oauthConfig *oauth2.Config
 	oauthToken  *oauth2.Token
 	secretsFile string
 	scopes      []string
 }
 
-func New(out chan bytes.Buffer, in chan bytes.Buffer, secretsFile string, scope string) *GAssistant {
+func New(audio *audio.Audio, secretsFile string, scope string) *GAssistant {
 
 	return &GAssistant{
-		audOut:      out,
-		audIn:       in,
+		audio:       audio,
 		secretsFile: secretsFile,
 		scopes:      strings.Split(scope, ","),
 	}
@@ -174,18 +173,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 	// Get Audio from mic and send to Assistant.
 	go func() {
 
-		sendAudioFunc := func() {
-			buff := <-s.audIn // get Audio packets from microphone channel (Audio In).
-
-			req = &embedded.ConverseRequest{
-				ConverseRequest: &embedded.ConverseRequest_AudioIn{
-					AudioIn: buff.Bytes(),
-				},
-			}
-			if err := conversation.Send(req); err != nil {
-				glog.Errorf("Failed to send audio to Google Assistant: %v", err)
-			}
-		}
+		s.audio.StartListen()
 
 		for {
 			select {
@@ -193,9 +181,19 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 			case <-micStopCh:
 				glog.V(2).Infof("Turning off mic")
 				conversation.CloseSend()
+				s.audio.StopListen()
 				return
-			default:
-				sendAudioFunc()
+
+			// Audio data available from mic.
+			case buff := <-s.audio.In:
+				req = &embedded.ConverseRequest{
+					ConverseRequest: &embedded.ConverseRequest_AudioIn{
+						AudioIn: buff.Bytes(),
+					},
+				}
+				if err := conversation.Send(req); err != nil {
+					glog.Errorf("Failed to send audio to Google Assistant: %v", err)
+				}
 			}
 		}
 	}()
@@ -233,7 +231,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 			glog.V(3).Infof("audio out from the assistant (%d bytes)\n", len(audioOut.AudioData))
 			signal := bytes.NewBuffer(audioOut.AudioData)
 			fullAudio.Write(audioOut.AudioData)
-			s.audOut <- *signal // Send audio to AudioOut Channel.
+			s.audio.Out <- *signal // Send audio to AudioOut Channel.
 		}
 	}
 }
