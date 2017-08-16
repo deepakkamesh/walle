@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 
+	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
+
 	"github.com/deepakkamesh/walle/assistant"
 	"github.com/deepakkamesh/walle/audio"
 	"github.com/golang/glog"
@@ -15,8 +17,8 @@ type WallEConfig struct {
 }
 
 type WallE struct {
-	gAssistant *assistant.GAssistant // Google Assistant object.
 	audio      *audio.Audio          // PortAudio IO object.
+	gAssistant *assistant.GAssistant // Google Assistant object.
 }
 
 func New(c *WallEConfig) *WallE {
@@ -36,6 +38,14 @@ func (s *WallE) Run() {
 	}
 
 	for {
+
+		go func() {
+			st := <-s.gAssistant.StatusCh
+			if st == embedded.ConverseResponse_END_OF_UTTERANCE {
+				glog.V(2).Infof("END_UTTERNACE")
+			}
+		}()
+
 		audioOut := s.gAssistant.ConverseWithAssistant()
 
 		// Convert assistant audio to text.

@@ -46,6 +46,7 @@ type GAssistant struct {
 	oauthToken  *oauth2.Token
 	secretsFile string
 	scopes      []string
+	StatusCh    chan embedded.ConverseResponse_EventType // Status channel signals end_of_utterance.
 }
 
 func New(audio *audio.Audio, secretsFile string, scope string) *GAssistant {
@@ -54,6 +55,7 @@ func New(audio *audio.Audio, secretsFile string, scope string) *GAssistant {
 		audio:       audio,
 		secretsFile: secretsFile,
 		scopes:      strings.Split(scope, ","),
+		StatusCh:    make(chan embedded.ConverseResponse_EventType),
 	}
 }
 
@@ -110,7 +112,7 @@ func (s *GAssistant) Auth() error {
 }
 
 func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
-	glog.V(2).Infof("Waiting for new conversation...")
+	glog.V(1).Infof("Waiting for new conversation...")
 	var convState []byte
 	micStopCh := make(chan struct{})
 
@@ -172,9 +174,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 
 	// Get Audio from mic and send to Assistant.
 	go func() {
-
 		s.audio.StartListen()
-
 		for {
 			select {
 			// Close the send of conversation and return from goroutine.
@@ -196,6 +196,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 				}
 			}
 		}
+
 	}()
 
 	var fullAudio bytes.Buffer
@@ -223,8 +224,11 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 		}
 
 		if resp.GetEventType() == embedded.ConverseResponse_END_OF_UTTERANCE {
-			glog.V(1).Info("Google said you are done, are you?!")
+			glog.V(2).Info("Got end of utterance from Assistant.")
 			micStopCh <- struct{}{}
+			go func() {
+				s.StatusCh <- embedded.ConverseResponse_END_OF_UTTERANCE
+			}()
 		}
 		audioOut := resp.GetAudioOut()
 		if audioOut != nil {

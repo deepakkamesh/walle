@@ -68,7 +68,7 @@ func (s *Audio) StopListen() {
 func (s *Audio) listen() {
 
 	// TODO: Get a cleaner solution to by removing the buffered channel and
-	// handling the race condition.
+	// handling the race condition. Write to s.In in a go func.
 	if len(s.In) > 0 {
 		glog.Warningf("Audio input channel is non zero: %v", len(s.In))
 	}
