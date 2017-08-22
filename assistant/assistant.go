@@ -75,16 +75,16 @@ func (s *GAssistant) loadTokenSource() error {
 }
 
 // TODO: Need to get a single auth function for all google api authentication.
-// TODO: Need to return a error.
 func (s *GAssistant) Auth() error {
 	f, err := os.Open(s.secretsFile)
 	if err != nil {
-		glog.Fatalf("Failed to open secrets file:%v", err)
+		return fmt.Errorf("failed to open secrets file:%v", err)
 	}
 	defer f.Close()
+
 	var token JSONToken
 	if err = json.NewDecoder(f).Decode(&token); err != nil {
-		glog.Fatalf("failed to decode json token: %v", err)
+		return fmt.Errorf("failed to decode json token: %v", err)
 	}
 
 	s.oauthConfig = &oauth2.Config{
@@ -98,17 +98,13 @@ func (s *GAssistant) Auth() error {
 		},
 	}
 
-	// check if we have an oauth file on disk
-	if true {
-		err = s.loadTokenSource()
-		if err == nil {
-			fmt.Println("Launching the Google Assistant using cached credentials")
-			return nil
-		}
-		fmt.Println("Failed to load the token source", err)
-		fmt.Println("Continuing program without cached credentials")
+	// TODO: check if we have an oauth file on disk
+	err = s.loadTokenSource()
+	if err == nil {
+		glog.V(2).Info("Launching the Google Assistant using cached credentials")
+		return nil
 	}
-	return nil
+	return fmt.Errorf("failed to load token %v", err)
 }
 
 func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
@@ -226,7 +222,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 		if resp.GetEventType() == embedded.ConverseResponse_END_OF_UTTERANCE {
 			glog.V(2).Info("Got end of utterance from Assistant.")
 			micStopCh <- struct{}{}
-			go func() {
+			go func() { //TODO: Does this need to be in a go func.
 				s.StatusCh <- embedded.ConverseResponse_END_OF_UTTERANCE
 			}()
 		}

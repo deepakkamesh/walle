@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"time"
 
 	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
 
@@ -17,6 +18,16 @@ import (
 const (
 	EMOTION_NORM byte = iota
 	EMOTION_SPEAK
+	EMOTION_BLINK
+	EMOTION_HAPPY
+	EMOTION_ANGRY
+	EMOTION_SAD
+	EMOTION_PUZZLED
+)
+const (
+	T300 = 300 * time.Millisecond
+	T200 = 200 * time.Millisecond
+	T100 = 100 * time.Millisecond
 )
 
 type WallEConfig struct {
@@ -29,11 +40,12 @@ type WallEConfig struct {
 type WallE struct {
 	audio      *audio.Audio          // PortAudio IO object.
 	gAssistant *assistant.GAssistant // Google Assistant object.
-	term       *termdraw.Term        // Termdraw object
+	term       *termdraw.Term        // Termdraw object.
 	resPath    string
 	emotions   map[byte][]image.Image
 }
 
+// New returns a new initialized WallE object.
 func New(c *WallEConfig) *WallE {
 
 	return &WallE{
@@ -41,13 +53,13 @@ func New(c *WallEConfig) *WallE {
 		audio:      c.Audio,
 		term:       c.Term,
 		resPath:    c.ResourcePath,
-		emotions:   make(map[byte][]image.Image),
+		//emotions:   make(map[byte][]image.Image), // TODO: Remove?
 	}
 }
 
+// Init initializes WallE subsystems (gAssistant, Audio, termdraw).
 func (s *WallE) Init() error {
 	s.audio.StartPlayback()
-
 	if err := s.term.Init(); err != nil {
 		return err
 	}
@@ -55,25 +67,71 @@ func (s *WallE) Init() error {
 		return err
 	}
 
-	//	 Load emotions.
+	// Load emotions.
 	exNorm, err := termdraw.LoadImages(s.resPath + "/walle_normal.png")
 	if err != nil {
 		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
-	exSpeak, err := termdraw.LoadImages(s.resPath+"/walle_normal.png",
-		s.resPath+"/walle_speaking_small.png", s.resPath+"/walle_speaking_med.png",
-		s.resPath+"/walle_speaking_large.png")
+	exSpeak, err := termdraw.LoadImages(
+		s.resPath+"/walle_normal.png",
+		s.resPath+"/walle_speaking_small.png",
+		s.resPath+"/walle_speaking_med.png",
+		s.resPath+"/walle_speaking_large.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+	exBlink, err := termdraw.LoadImages(
+		s.resPath+"/walle_normal.png",
+		s.resPath+"/walle_normal_eye_small.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+	exHappy, err := termdraw.LoadImages(
+		s.resPath + "/walle_happy.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+	exSad, err := termdraw.LoadImages(
+		s.resPath + "/walle_sad.png",
+	)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
 
-	s.emotions[EMOTION_NORM] = exNorm
-	s.emotions[EMOTION_SPEAK] = exSpeak
+	exAngry, err := termdraw.LoadImages(
+		s.resPath + "/walle_angry.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	exPuzzled, err := termdraw.LoadImages(
+		s.resPath + "/walle_puzzled.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	s.emotions = map[byte][]image.Image{
+		EMOTION_NORM:    exNorm,
+		EMOTION_SPEAK:   exSpeak,
+		EMOTION_BLINK:   exBlink,
+		EMOTION_HAPPY:   exHappy,
+		EMOTION_ANGRY:   exAngry,
+		EMOTION_SAD:     exSad,
+		EMOTION_PUZZLED: exPuzzled,
+	}
+
 	s.term.Run()
+	s.term.Animate(s.emotions[EMOTION_NORM], '*', T200)
 
 	return nil
 }
 
+// Run is the main event loop.
 func (s *WallE) Run() {
 	for {
 		evt := <-s.term.EventCh
@@ -83,26 +141,28 @@ func (s *WallE) Run() {
 				s.term.Quit()
 				return
 			case evt.Ch == 'r':
-				s.interact()
+				s.interactAI()
 			}
-
 		}
 	}
 	return
 }
-func (s *WallE) interact() {
+
+// interactAI runs a gAssistant session collects the response text
+// and analyzes it for sentiment.
+func (s *WallE) interactAI() {
 
 	go func() {
 		st := <-s.gAssistant.StatusCh
 		if st == embedded.ConverseResponse_END_OF_UTTERANCE {
-			glog.V(2).Infof("END_UTTERNACE")
-			s.term.Animate(s.emotions[EMOTION_SPEAK], '*', 200)
+			glog.V(2).Infof("GAssisant sent END_OF_UTTERNACE")
+			s.term.Animate(s.emotions[EMOTION_SPEAK], '*', T100)
 		}
 	}()
 
-	s.term.Animate(s.emotions[EMOTION_NORM], '*', 200)
+	s.term.Animate(s.emotions[EMOTION_BLINK], '*', T200)
 	audioOut := s.gAssistant.ConverseWithAssistant()
-	s.term.Animate(s.emotions[EMOTION_NORM], '*', 200)
+	s.term.Animate(s.emotions[EMOTION_PUZZLED], '*', T300)
 
 	// Convert assistant audio to text.
 	txt, err := SpeechToText(audioOut)
@@ -120,4 +180,27 @@ func (s *WallE) interact() {
 	}
 	glog.V(1).Infof("Sentiment Analysis - Score:%v Magnitude:%v", score, magnitude)
 
+	// Select an emotion to display.
+	emotion := selectEmotion(score, txt)
+	s.term.Animate(s.emotions[emotion], '*', T200)
+}
+
+func selectEmotion(score float32, txt string) byte {
+
+	words := map[string][]string{
+		"sad": {"sorry", "don't"},
+	}
+	_ = words
+	switch {
+	case 0 < score && score < 1:
+		//Happy
+		return EMOTION_HAPPY
+	case -0.3 < score && score <= 0:
+		//Norm
+		return EMOTION_NORM
+	case -1 < score && score <= -0.3:
+		//sad
+		return EMOTION_SAD
+	}
+	return EMOTION_NORM
 }
