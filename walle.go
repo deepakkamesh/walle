@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"strings"
 	"time"
 
 	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
@@ -23,11 +24,18 @@ const (
 	EMOTION_ANGRY
 	EMOTION_SAD
 	EMOTION_PUZZLED
+	EMOTION_SMILE_MED
+	EMOTION_THINKING
 )
 const (
+	T500 = 500 * time.Millisecond
 	T300 = 300 * time.Millisecond
 	T200 = 200 * time.Millisecond
 	T100 = 100 * time.Millisecond
+)
+const (
+	CH1 = '█'
+	CH  = '▒'
 )
 
 type WallEConfig struct {
@@ -115,18 +123,35 @@ func (s *WallE) Init() error {
 		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
 
+	exSmileMed, err := termdraw.LoadImages(
+		s.resPath + "/walle_smile_medium.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	exThinking, err := termdraw.LoadImages(
+		s.resPath+"/walle_normal_eyes_left.png",
+		s.resPath+"/walle_normal_eyes_right.png",
+	)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
 	s.emotions = map[byte][]image.Image{
-		EMOTION_NORM:    exNorm,
-		EMOTION_SPEAK:   exSpeak,
-		EMOTION_BLINK:   exBlink,
-		EMOTION_HAPPY:   exHappy,
-		EMOTION_ANGRY:   exAngry,
-		EMOTION_SAD:     exSad,
-		EMOTION_PUZZLED: exPuzzled,
+		EMOTION_NORM:      exNorm,
+		EMOTION_SPEAK:     exSpeak,
+		EMOTION_BLINK:     exBlink,
+		EMOTION_HAPPY:     exHappy,
+		EMOTION_ANGRY:     exAngry,
+		EMOTION_SAD:       exSad,
+		EMOTION_PUZZLED:   exPuzzled,
+		EMOTION_SMILE_MED: exSmileMed,
+		EMOTION_THINKING:  exThinking,
 	}
 
 	s.term.Run()
-	s.term.Animate(s.emotions[EMOTION_NORM], '*', T200)
+	s.term.Animate(s.emotions[EMOTION_NORM], CH, T200)
 
 	return nil
 }
@@ -156,13 +181,13 @@ func (s *WallE) interactAI() {
 		st := <-s.gAssistant.StatusCh
 		if st == embedded.ConverseResponse_END_OF_UTTERANCE {
 			glog.V(2).Infof("GAssisant sent END_OF_UTTERNACE")
-			s.term.Animate(s.emotions[EMOTION_SPEAK], '*', T100)
+			s.term.Animate(s.emotions[EMOTION_SPEAK], CH, T100)
 		}
 	}()
 
-	s.term.Animate(s.emotions[EMOTION_BLINK], '*', T200)
+	s.term.Animate(s.emotions[EMOTION_BLINK], CH, T200)
 	audioOut := s.gAssistant.ConverseWithAssistant()
-	s.term.Animate(s.emotions[EMOTION_PUZZLED], '*', T300)
+	s.term.Animate(s.emotions[EMOTION_THINKING], CH, T500)
 
 	// Convert assistant audio to text.
 	txt, err := SpeechToText(audioOut)
@@ -182,25 +207,36 @@ func (s *WallE) interactAI() {
 
 	// Select an emotion to display.
 	emotion := selectEmotion(score, txt)
-	s.term.Animate(s.emotions[emotion], '*', T200)
+	s.term.Animate(s.emotions[emotion], CH, T200)
 }
 
 func selectEmotion(score float32, txt string) byte {
 
-	words := map[string][]string{
-		"sad": {"sorry", "don't"},
+	// Override sentiment.
+	words := map[byte][]string{
+		EMOTION_SAD:   {"sorry"},
+		EMOTION_HAPPY: {"joke", "laugh"},
 	}
-	_ = words
+
+	for emotion, wordList := range words {
+		for _, word := range wordList {
+			if strings.Contains(txt, word) {
+				glog.V(2).Infof("Emotion override for matching word %v", word)
+				return emotion
+			}
+		}
+	}
 	switch {
-	case 0 < score && score < 1:
-		//Happy
+	case 0.4 < score && score < 1:
 		return EMOTION_HAPPY
-	case -0.3 < score && score <= 0:
-		//Norm
+	case 0.1 < score && score <= 0.4:
+		return EMOTION_SMILE_MED
+	case -0.2 < score && score <= 0.1:
 		return EMOTION_NORM
-	case -1 < score && score <= -0.3:
-		//sad
+	case -0.6 < score && score <= -0.2:
 		return EMOTION_SAD
+	case -1 < score && score <= -0.6:
+		return EMOTION_ANGRY
 	}
 	return EMOTION_NORM
 }
