@@ -214,7 +214,7 @@ func selectEmotion(score float32, txt string) byte {
 
 	// Override sentiment.
 	words := map[byte][]string{
-		EMOTION_SAD:   {"sorry"},
+		EMOTION_SAD:   {"sorry", "apologies"},
 		EMOTION_HAPPY: {"joke", "laugh"},
 	}
 
