@@ -198,7 +198,7 @@ func (s *WallE) interactAI() {
 	txt, err := SpeechToText(audioOut)
 	if err != nil {
 		glog.Errorf("Failed to recognize speech: %v", err)
-		return // TODO: Figure out this return.
+		return //TODO: returns should change emotion.
 	}
 	glog.V(1).Infof("Google Assistant said: %v", txt)
 

@@ -16,9 +16,7 @@ type Audio struct {
 	streamOut    *portaudio.Stream
 	bufIn        []int16
 	bufOut       []int16
-	listenQuit   chan struct{}
 	listenStop   chan struct{}
-	playbackQuit chan struct{}
 	playbackStop chan struct{}
 }
 
@@ -41,14 +39,12 @@ func New() *Audio {
 
 	return &Audio{
 		In:           make(chan bytes.Buffer, 10),
-		Out:          make(chan bytes.Buffer, 10),
+		Out:          make(chan bytes.Buffer, 1000),
 		streamIn:     in,
 		streamOut:    out,
 		bufIn:        bufIn,
 		bufOut:       bufOut,
-		listenQuit:   make(chan struct{}),
 		listenStop:   make(chan struct{}),
-		playbackQuit: make(chan struct{}),
 		playbackStop: make(chan struct{}),
 	}
 }
@@ -109,12 +105,6 @@ func (s *Audio) listen() {
 			}
 			return
 
-		case <-s.listenQuit:
-			if err := s.streamIn.Close(); err != nil {
-				glog.Errorf("Failed to close input audio stream: %v", err)
-			}
-			return
-
 		default:
 			listenFunc()
 		}
@@ -128,11 +118,6 @@ func (s *Audio) playback() {
 
 	for {
 		select {
-		case <-s.playbackQuit:
-			if err := s.streamOut.Close(); err != nil {
-				glog.Errorf("Failed to close output audio stream: %v", err)
-			}
-			return
 
 		case <-s.playbackStop:
 			if err := s.streamOut.Stop(); err != nil {
@@ -155,6 +140,10 @@ func (s *Audio) playback() {
 }
 
 func (s *Audio) Quit() {
-	s.listenQuit <- struct{}{}
-	s.playbackQuit <- struct{}{}
+	if err := s.streamOut.Close(); err != nil {
+		glog.Errorf("Failed to close output audio stream: %v", err)
+	}
+	if err := s.streamIn.Close(); err != nil {
+		glog.Errorf("Failed to close input audio stream: %v", err)
+	}
 }

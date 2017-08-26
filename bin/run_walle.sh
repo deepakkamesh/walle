@@ -11,5 +11,6 @@ $LOC/main \
 				-resources_path=$LOC/../resources \
 				-alsologtostderr=false \
 				-logtostderr=false \
+				-stderrthreshold=FATAL \
 				-en_emotion=true \
 				-v=2
