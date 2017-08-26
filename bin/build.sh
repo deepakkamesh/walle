@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # $1 = arm or default
 # $2 = host to push binary
 # $3 = all, bin, res
@@ -14,10 +14,10 @@ fi
 # Compile binary.
 if [ $1 == "arm" ]; then
 	echo "Compiling for ARM"
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build 
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc  CGO_LDFLAGS="-L/home/dkg/arm-lib -Wl,-rpath,/home/dkg/arm-lib" go build main.go 
 else
 	echo "Compiling on local machine"
-	go build 
+	go build main.go 
 fi
 
 # Push binary to remote if previous step completed.
