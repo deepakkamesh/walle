@@ -3,6 +3,7 @@ package audio
 import (
 	"bytes"
 	"encoding/binary"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/gordonklaus/portaudio"
@@ -18,6 +19,7 @@ type Audio struct {
 	listenQuit   chan struct{}
 	listenStop   chan struct{}
 	playbackQuit chan struct{}
+	playbackStop chan struct{}
 }
 
 func New() *Audio {
@@ -47,6 +49,7 @@ func New() *Audio {
 		listenQuit:   make(chan struct{}),
 		listenStop:   make(chan struct{}),
 		playbackQuit: make(chan struct{}),
+		playbackStop: make(chan struct{}),
 	}
 }
 
@@ -63,6 +66,18 @@ func (s *Audio) StartListen() {
 
 func (s *Audio) StopListen() {
 	s.listenStop <- struct{}{}
+}
+
+func (s *Audio) StopPlayback() {
+	s.playbackStop <- struct{}{}
+}
+
+// ResetPlayback resets the output stream (stop, start)
+func (s *Audio) ResetPlayback() {
+	s.StopPlayback()
+	t := time.NewTimer(50 * time.Millisecond)
+	<-t.C
+	s.StartPlayback()
 }
 
 func (s *Audio) listen() {
@@ -108,7 +123,7 @@ func (s *Audio) listen() {
 
 func (s *Audio) playback() {
 	if err := s.streamOut.Start(); err != nil {
-		glog.Fatalf("Failed to start audio out")
+		glog.Fatalf("Failed to start audio out: %v", err)
 	}
 
 	for {
@@ -116,6 +131,12 @@ func (s *Audio) playback() {
 		case <-s.playbackQuit:
 			if err := s.streamOut.Close(); err != nil {
 				glog.Errorf("Failed to close output audio stream: %v", err)
+			}
+			return
+
+		case <-s.playbackStop:
+			if err := s.streamOut.Stop(); err != nil {
+				glog.Errorf("Failed to stop output audio stream: %v", err)
 			}
 			return
 

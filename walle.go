@@ -164,6 +164,7 @@ func (s *WallE) Run() {
 			switch {
 			case evt.Key == termbox.KeyEsc:
 				s.term.Quit()
+				s.audio.Quit()
 				return
 			case evt.Ch == 'r':
 				s.interactAI()
@@ -176,6 +177,10 @@ func (s *WallE) Run() {
 // interactAI runs a gAssistant session collects the response text
 // and analyzes it for sentiment.
 func (s *WallE) interactAI() {
+
+	//TODO: This is a workaround for Pi as the audio does not continue playing. Needs
+	// investigation and fix.
+	s.audio.ResetPlayback()
 
 	go func() {
 		st := <-s.gAssistant.StatusCh
@@ -193,7 +198,7 @@ func (s *WallE) interactAI() {
 	txt, err := SpeechToText(audioOut)
 	if err != nil {
 		glog.Errorf("Failed to recognize speech: %v", err)
-		return
+		return // TODO: Figure out this return.
 	}
 	glog.V(1).Infof("Google Assistant said: %v", txt)
 
