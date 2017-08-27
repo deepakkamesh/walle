@@ -3,7 +3,10 @@
 # $2 = host to push binary
 # $3 = all, bin, res
 
-PROJECT_ROOT="/Users/dkg/Projects/"
+LOC=$(dirname "$0")
+PROJECT_ROOT="/home/dkg/Projects/"
+GOROOT="/usr/local/go"
+export GOPATH="$PROJECT_ROOT/golang"
 
 # help
 if [ "$1" == "help" ]; then
@@ -14,7 +17,9 @@ fi
 # Compile binary.
 if [ $1 == "arm" ]; then
 	echo "Compiling for ARM"
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc  CGO_LDFLAGS="-L/home/dkg/arm-lib -Wl,-rpath,/home/dkg/arm-lib" go build main.go 
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc \
+	CGO_LDFLAGS="-L/home/dkg/arm-lib -Wl,-rpath,/home/dkg/arm-lib" \
+ 	$GOROOT/bin/go build $LOC/main.go 
 else
 	echo "Compiling on local machine"
 	go build main.go 
