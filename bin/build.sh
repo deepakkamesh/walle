@@ -19,8 +19,8 @@ if [ $1 == "arm" ]; then
 	echo "Compiling for ARM"
 	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc \
 	CGO_LDFLAGS="-L/home/dkg/arm-lib -Wl,-rpath,/home/dkg/arm-lib" \
- 	$GOROOT/bin/go build $LOC/main.go 
-else
+ 	$GOROOT/bin/go build -o $LOC/main $LOC/main.go 
+ else
 	echo "Compiling on local machine"
 	go build main.go 
 fi
