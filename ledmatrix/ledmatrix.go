@@ -29,7 +29,7 @@ func (s *LEDMatrix) Start(a gobot.Connection, row []string, col []string) error 
 		if e := d.Start(); e != nil {
 			return fmt.Errorf("failed to start GPIO:%v", e)
 		}
-		d.DigitalWrite(1) // Rows are anode, so initialize to 0.
+		d.DigitalWrite(1)
 		s.rconn[i] = d
 	}
 	// Initialize col gpio.
@@ -38,9 +38,10 @@ func (s *LEDMatrix) Start(a gobot.Connection, row []string, col []string) error 
 		if e := d.Start(); e != nil {
 			return fmt.Errorf("failed to start GPIO:%v", e)
 		}
-		d.DigitalWrite(0) // Cols are cathode, so initialize to 1.
+		d.DigitalWrite(0)
 		s.cconn[i] = d
 	}
+	go s.loop()
 	return nil
 }
 
@@ -56,7 +57,7 @@ func (s *LEDMatrix) Test() {
 					panic(e)
 				}
 
-				time.Sleep(300 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 				s.cconn[i].DigitalWrite(0)
 			}
 			s.rconn[j].DigitalWrite(1)
@@ -67,22 +68,27 @@ func (s *LEDMatrix) Test() {
 func (s *LEDMatrix) Set(data [][]byte) {
 	s.data = data
 }
-func (s *LEDMatrix) Display() {
+
+func (s *LEDMatrix) loop() {
 
 	clen := len(s.cconn)
 	rlen := len(s.rconn)
-	/*
-		defer func() {
-			for i := 0; i < clen; i++ {
-				s.cconn[i].DigitalWrite(0)
-			}
 
-			for i := 0; i < rlen; i++ {
-				s.rconn[i].DigitalWrite(1)
-			}
-		}()
-	*/
+	defer func() {
+		for i := 0; i < clen; i++ {
+			s.cconn[i].DigitalWrite(0)
+		}
+
+		for i := 0; i < rlen; i++ {
+			s.rconn[i].DigitalWrite(1)
+		}
+	}()
+
 	for {
+		if s.data == nil {
+			continue
+		}
+
 		for r := 0; r < rlen; r++ {
 			cnt := 0
 
@@ -104,13 +110,29 @@ func (s *LEDMatrix) Display() {
 					panic(e)
 					//return fmt.Errorf("Write Error on row %v: %v", r, e)
 				}
-				time.Sleep(time.Duration(cnt) * 4 * time.Millisecond)
+				time.Sleep(time.Duration(cnt) * 3 * time.Millisecond)
 				if e := s.rconn[r].DigitalWrite(1); e != nil {
 					panic(e)
 					//return fmt.Errorf("Write Off Error on row %v: %v", r, e)
 				}
 			}
-
 		}
 	}
+}
+
+func (s *LEDMatrix) Animate(dlist ...[][]byte) {
+	go func() {
+		t := time.NewTicker(100 * time.Millisecond)
+		i := 0
+
+		for {
+			<-t.C
+			bmp := dlist[i]
+			s.Set(bmp)
+			i++
+			if i == len(dlist) {
+				i = 0
+			}
+		}
+	}()
 }
