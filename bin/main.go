@@ -26,7 +26,7 @@ func main() {
 	ai := assistant.New(aud, fmt.Sprintf("%v/%v", *resourcesPath, *secretsFile), *assistantScope)
 
 	// Flush logs to disk.
-	logFlusher := time.NewTicker(300 * time.Millisecond)
+	logFlusher := time.NewTicker(500 * time.Millisecond)
 	go func() {
 		for {
 			<-logFlusher.C
