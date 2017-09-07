@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -18,8 +19,10 @@ type imageData struct {
 	data [][]bool
 }
 
+// Animation is a list of images to cycle through in d duration.
 type Animation struct {
-	images []image.Image
+	images []image.Image // List of images to cycle through.
+	d      time.Duration // Time to cycle between each image.
 }
 
 type OLED struct {
@@ -29,6 +32,7 @@ type OLED struct {
 	tick     *time.Ticker
 	updateCh chan *Animation
 	oled     *i2c.SSD1306Driver
+	lock     *sync.Mutex // See Init() doc.
 }
 
 // New returns an initialized OLED.
@@ -42,16 +46,20 @@ func NewOLED() *OLED {
 }
 
 // Init initializes the OLED display.
-func (s *OLED) Init(r *raspi.Adaptor, bus int, i2cAddress int) error {
+// mutex is to sync writes when there are multiple OLED displays on the same bus. It looks
+// like data meant for one address ends up on another. Possible bit corruption?
+func (s *OLED) Init(r *raspi.Adaptor, bus int, i2cAddress int, mutex *sync.Mutex, name string) error {
 
 	// Initialize I2C display.
 	oled := i2c.NewSSD1306Driver(r, i2c.WithBus(bus), i2c.WithAddress(i2cAddress))
 	if err := oled.Start(); err != nil {
 		return err
 	}
+	s.lock = mutex
 	s.oled = oled
-	s.oled.Clear()
 	s.oled.SetContrast(10)
+	s.oled.Reset()
+	s.oled.Clear()
 	return nil
 }
 
@@ -62,13 +70,14 @@ func (s *OLED) Animate(imgs []image.Image, d time.Duration) {
 
 	s.updateCh <- &Animation{
 		images: imgs,
+		d:      d,
 	}
 }
 
 // processImage processes the image data and loads it. It currently only
 // processes the A of rgbA of a monochrome image. 'A' indicates the opacity
 // of the pixel.
-func (s *OLED) processImages(imgs []image.Image, d time.Duration) {
+func (s *OLED) processImages(imgs []image.Image) {
 
 	s.images = nil
 
@@ -133,15 +142,18 @@ func (s *OLED) Run() error {
 			select {
 			case upd := <-s.updateCh:
 				i = 0
-				s.processImages(upd.images, 200)
+				s.tick = time.NewTicker(upd.d * time.Millisecond)
+				s.processImages(upd.images)
 
 			case <-s.tick.C:
 				if i == len(s.images) {
 					i = 0
 				}
 				s.curr = uint(i)
-				s.draw()
 				i++
+				s.lock.Lock()
+				s.draw()
+				s.lock.Unlock()
 
 			case <-s.quitLoop:
 				s.oled.Clear()
