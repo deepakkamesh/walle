@@ -3,6 +3,7 @@ package walle
 import (
 	"fmt"
 
+	"gobot.io/x/gobot/platforms/raspi"
 	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
 
 	"github.com/deepakkamesh/walle/assistant"
@@ -47,7 +48,13 @@ func (s *WallE) Init() error {
 		return err
 	}
 
-	if err := s.emotion.Init(s.resPath); err != nil {
+	// Initialize Pi Adapter.
+	rpi := raspi.NewAdaptor()
+	if err := rpi.Connect(); err != nil {
+		return err
+	}
+
+	if err := s.emotion.Init(s.resPath, rpi); err != nil {
 		return fmt.Errorf("failed to init emotions:%v", err)
 	}
 
@@ -66,6 +73,9 @@ func (s *WallE) Run() {
 				return
 			case evt.Ch == 'r':
 				s.interactAI()
+
+			case evt.Ch == 't':
+				s.emotion.CycleEmotions()
 			}
 		}
 	}
@@ -76,7 +86,7 @@ func (s *WallE) Run() {
 // and analyzes it for sentiment.
 func (s *WallE) interactAI() {
 
-	//TODO: This is a workaround for Pi as the audio does not continue playing. Needs
+	//TODO: This is a workaround for Pi as the audio does not continue playing after first interaction. Needs
 	// investigation and fix.
 	s.audio.ResetPlayback()
 
@@ -90,7 +100,7 @@ func (s *WallE) interactAI() {
 
 	s.emotion.Expression(EMOTION_BLINK, CH, 200)
 	audioOut := s.gAssistant.ConverseWithAssistant()
-	s.emotion.Expression(EMOTION_THINKING, CH, 200)
+	s.emotion.Expression(EMOTION_THINKING, CH, 100)
 
 	// Convert assistant audio to text.
 	txt, err := SpeechToText(audioOut)

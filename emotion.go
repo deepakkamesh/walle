@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deepakkamesh/termdraw"
@@ -26,43 +27,37 @@ const (
 
 // Face represents a struct making up the moving parts.
 type Face struct {
-	leftEye  []image.Image
-	rightEye []image.Image
+	eye   []image.Image
+	mouth []image.Image
 }
 
 type Emotion struct {
 	term         *termdraw.Term
-	leftEye      *OLED
-	rightEye     *OLED
+	eye          *OLED
+	mouth        *OLED
 	termEmotions map[byte][]image.Image
 	faceEmotions map[byte]Face
 }
 
 func NewEmotion() *Emotion {
 	return &Emotion{
-		term:     termdraw.New(),
-		leftEye:  NewOLED(),
-		rightEye: NewOLED(),
+		term:  termdraw.New(),
+		eye:   NewOLED(),
+		mouth: NewOLED(),
 	}
 }
 
-func (s *Emotion) Init(resPath string) error {
+func (s *Emotion) Init(resPath string, r *raspi.Adaptor) error {
 
 	if err := s.term.Init(); err != nil {
 		return err
 	}
-
-	// Initialize Pi Adapter.
-	r := raspi.NewAdaptor()
-	if err := r.Connect(); err != nil {
+	// Initialize OLED displays.
+	lock := &sync.Mutex{}
+	if err := s.eye.Init(r, 1, 0x3c, lock, "eye"); err != nil {
 		return err
 	}
-
-	if err := s.leftEye.Init(r, 1, 0x3c); err != nil {
-		return err
-	}
-
-	if err := s.rightEye.Init(r, 1, 0x3d); err != nil {
+	if err := s.mouth.Init(r, 1, 0x3d, lock, "mouth"); err != nil {
 		return err
 	}
 
@@ -70,11 +65,10 @@ func (s *Emotion) Init(resPath string) error {
 	if err := s.term.Run(); err != nil {
 		return err
 	}
-	if err := s.leftEye.Run(); err != nil {
+	if err := s.eye.Run(); err != nil {
 		return err
 	}
-
-	if err := s.rightEye.Run(); err != nil {
+	if err := s.mouth.Run(); err != nil {
 		return err
 	}
 
@@ -92,40 +86,48 @@ func (s *Emotion) Init(resPath string) error {
 	s.faceEmotions = faceEmotions
 
 	// Default expression.
-	s.term.Animate(s.termEmotions[EMOTION_NORM], CH, 200)
-	s.leftEye.Animate(s.faceEmotions[EMOTION_NORM].leftEye, 100)
-	s.rightEye.Animate(s.faceEmotions[EMOTION_NORM].rightEye, 100)
+	/*s.term.Animate(s.termEmotions[EMOTION_NORM], CH, 200)
+	s.eye.Animate(s.faceEmotions[EMOTION_NORM].eye, 1000)
+	s.mouth.Animate(s.faceEmotions[EMOTION_NORM].mouth, 1000)*/
+	s.Expression(EMOTION_NORM, CH, 1000)
 
 	return nil
 }
 
+// CycleEmotions cycles through emotions; primarily a test function.
+func (s *Emotion) CycleEmotions() {
+
+	for k, _ := range s.faceEmotions {
+		s.Expression(k, CH, 200)
+		glog.V(2).Infof("Displaying emotion %v", k)
+		time.Sleep(3000 * time.Millisecond)
+	}
+}
+
 // Expression displays the requested emotion using the character ch. If the expression is
 // animated it switchesusing ms milliseconds.
-func (s *Emotion) Expression(emotion byte, ch rune, ms uint16) error {
+func (s *Emotion) Expression(emotion byte, ch rune, ms uint) error {
+
 	e, ok := s.termEmotions[emotion]
 	if !ok {
 		return fmt.Errorf("expression not found")
 	}
-	s.term.Animate(e, CH, 200*time.Millisecond)
+	s.term.Animate(e, CH, time.Duration(ms)*time.Millisecond)
 
 	face, ok := s.faceEmotions[emotion]
 	if !ok {
 		return fmt.Errorf("expression not found")
 	}
-
-	switch emotion {
-	case EMOTION_NORM:
-		s.leftEye.Animate(face.leftEye, 100*time.Millisecond)
-		s.rightEye.Animate(face.rightEye, 100*time.Millisecond)
-	}
+	s.eye.Animate(face.eye, ms)
+	s.mouth.Animate(face.mouth, ms)
 
 	return nil
 }
 
 func (s *Emotion) Quit() {
 	s.term.Quit()
-	s.leftEye.Quit()
-	s.rightEye.Quit()
+	s.eye.Quit()
+	s.mouth.Quit()
 }
 
 // selectEmotion allows overriding of emotions based on txt.
@@ -239,29 +241,118 @@ func loadTermEmotions(resPath string) (map[byte][]image.Image, error) {
 
 func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 
-	leftINorm, err := LoadImages(
-		resPath + "/left_eye.png",
+	// Load Eye Expressions.
+	eye, err := LoadImages(
+		resPath + "/eye.png",
 	)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
-	rightINorm, err := LoadImages(
-		resPath + "/right_eye.png",
+
+	eyeBlink, err := LoadImages(
+		resPath+"/eye.png",
+		resPath+"/eye_half_closed.png",
+		resPath+"/eye_full_closed.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	eyeSide2Side, err := LoadImages(
+		resPath+"/eye_look_left.png",
+		resPath+"/eye.png",
+		resPath+"/eye_look_right.png",
+		resPath+"/eye.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	eyePupilDialated, err := LoadImages(
+		resPath + "/wide_eye.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	eyePupilMov, err := LoadImages(
+		resPath+"/eye.png",
+		resPath+"/wide_eye.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	// Load mouth expressions.
+	mouth, err := LoadImages(
+		resPath + "/mouth.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthOpenSM, err := LoadImages(
+		resPath + "/mouth_half_open.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthOpenLG, err := LoadImages(
+		resPath + "/mouth_full_open.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthSpeak, err := LoadImages(
+		resPath+"/mouth.png",
+		resPath+"/mouth_half_open.png",
+		resPath+"/mouth_full_open.png",
+		resPath+"/mouth_half_open.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthSmileSM, err := LoadImages(
+		resPath + "/mouth_half_smile.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthSmileLG, err := LoadImages(
+		resPath + "/mouth_full_smile.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthInvSM, err := LoadImages(
+		resPath + "/mouth_half_inverted.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	mouthInvLG, err := LoadImages(
+		resPath + "/mouth_full_inverted.png",
 	)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
 
 	return map[byte]Face{
-		EMOTION_NORM:      Face{leftINorm, rightINorm},
-		EMOTION_SPEAK:     Face{},
-		EMOTION_BLINK:     Face{},
-		EMOTION_HAPPY:     Face{},
-		EMOTION_ANGRY:     Face{},
-		EMOTION_SAD:       Face{},
-		EMOTION_PUZZLED:   Face{},
-		EMOTION_SMILE_MED: Face{},
-		EMOTION_THINKING:  Face{},
+		EMOTION_NORM:      Face{eye, mouth},
+		EMOTION_SPEAK:     Face{eye, mouthSpeak},
+		EMOTION_BLINK:     Face{eyeBlink, mouthSmileSM},
+		EMOTION_ANGRY:     Face{eye, mouthInvLG},
+		EMOTION_SAD:       Face{eye, mouthInvSM},
+		EMOTION_PUZZLED:   Face{eyePupilMov, mouthOpenLG},
+		EMOTION_HAPPY:     Face{eyePupilDialated, mouthSmileLG},
+		EMOTION_SMILE_MED: Face{eye, mouthSmileSM},
+		EMOTION_THINKING:  Face{eyeSide2Side, mouthOpenSM},
 	}, nil
 
 }

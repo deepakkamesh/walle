@@ -22,7 +22,7 @@ type imageData struct {
 // Animation is a list of images to cycle through in d duration.
 type Animation struct {
 	images []image.Image // List of images to cycle through.
-	d      time.Duration // Time to cycle between each image.
+	d      uint          // Time ms to cycle between each image.
 }
 
 type OLED struct {
@@ -66,7 +66,7 @@ func (s *OLED) Init(r *raspi.Adaptor, bus int, i2cAddress int, mutex *sync.Mutex
 // Animate sends image data to the main processing loop. This is done
 // in the main loop to avoid race conditions; updating image data while
 // its being displayed by draw func.
-func (s *OLED) Animate(imgs []image.Image, d time.Duration) {
+func (s *OLED) Animate(imgs []image.Image, d uint) {
 
 	s.updateCh <- &Animation{
 		images: imgs,
@@ -142,7 +142,7 @@ func (s *OLED) Run() error {
 			select {
 			case upd := <-s.updateCh:
 				i = 0
-				s.tick = time.NewTicker(upd.d * time.Millisecond)
+				s.tick = time.NewTicker(time.Duration(upd.d) * time.Millisecond)
 				s.processImages(upd.images)
 
 			case <-s.tick.C:
