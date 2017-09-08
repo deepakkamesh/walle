@@ -93,12 +93,12 @@ func (s *WallE) interactAI() {
 	go func() {
 		st := <-s.gAssistant.StatusCh
 		if st == embedded.ConverseResponse_END_OF_UTTERANCE {
-			glog.V(2).Infof("GAssisant sent END_OF_UTTERNACE")
+			glog.V(2).Infof("gAssisant sent END_OF_UTTERANCE")
 			s.emotion.Expression(EMOTION_SPEAK, CH, 200)
 		}
 	}()
 
-	s.emotion.Expression(EMOTION_BLINK, CH, 200)
+	s.emotion.Expression(EMOTION_BLINK, CH, 100)
 	audioOut := s.gAssistant.ConverseWithAssistant()
 	s.emotion.Expression(EMOTION_THINKING, CH, 100)
 
@@ -106,7 +106,8 @@ func (s *WallE) interactAI() {
 	txt, err := SpeechToText(audioOut)
 	if err != nil {
 		glog.Errorf("Failed to recognize speech: %v", err)
-		return //TODO: returns should change emotion.
+		s.emotion.Expression(EMOTION_SAD, CH, 900)
+		return
 	}
 	glog.V(1).Infof("Google Assistant said: %v", txt)
 
@@ -114,11 +115,12 @@ func (s *WallE) interactAI() {
 	score, magnitude, err := AnalyzeSentiment(txt)
 	if err != nil {
 		glog.Errorf("Failed to analyze sentiment: %v", err)
+		s.emotion.Expression(EMOTION_SAD, CH, 900)
 		return
 	}
 	glog.V(1).Infof("Sentiment Analysis - Score:%v Magnitude:%v", score, magnitude)
 
 	// Select an emotion to display.
 	emotion := selectEmotion(score, txt)
-	s.emotion.Expression(emotion, CH, 200)
+	s.emotion.Expression(emotion, CH, 300)
 }

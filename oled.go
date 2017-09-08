@@ -114,12 +114,13 @@ func (s *OLED) draw() {
 	if len(s.images) == 0 {
 		return
 	}
-	s.oled.Clear()
+	//s.oled.Clear()
 	w := s.oled.Buffer.Width
 	h := s.oled.Buffer.Height
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
+			s.oled.Set(x, y, 0)
 			if s.images[s.curr].Ymax > y && s.images[s.curr].Xmax > x && s.images[s.curr].data[y][x] {
 				s.oled.Set(x, y, 1)
 			}
