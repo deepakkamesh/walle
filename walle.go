@@ -2,6 +2,7 @@ package walle
 
 import (
 	"fmt"
+	"time"
 
 	"gobot.io/x/gobot/platforms/raspi"
 	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
@@ -64,19 +65,29 @@ func (s *WallE) Init() error {
 // Run is the main event loop.
 func (s *WallE) Run() {
 	for {
-		evt := <-s.emotion.term.EventCh
-		if evt.Type == termbox.EventKey {
-			switch {
-			case evt.Key == termbox.KeyEsc:
-				s.emotion.Quit()
-				s.audio.Quit()
-				return
-			case evt.Ch == 'r':
-				s.interactAI()
+		select {
 
-			case evt.Ch == 't':
-				s.emotion.CycleEmotions()
+		case evt := <-s.emotion.term.EventCh:
+			if evt.Type == termbox.EventKey {
+				switch {
+				case evt.Key == termbox.KeyEsc:
+					s.emotion.Quit()
+					s.audio.Quit()
+					return
+
+				case evt.Ch == 'r':
+					s.interactAI()
+
+				case evt.Ch == 't':
+					s.emotion.CycleEmotions()
+
+				case evt.Ch == 's':
+					TextToSpeech(s.resPath+"/bored.raw", s.audio)
+				}
 			}
+
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	return

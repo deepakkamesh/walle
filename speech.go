@@ -3,12 +3,38 @@ package walle
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 
+	"github.com/deepakkamesh/walle/audio"
 	"github.com/golang/glog"
 
 	speech "cloud.google.com/go/speech/apiv1"
 	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 )
+
+const (
+	CHUNK_SZ = 1600
+)
+
+// TextToSpeech plays the raw audio file identified by fname.
+func TextToSpeech(fname string, aud *audio.Audio) error {
+	aud.ResetPlayback()
+	data, err := ioutil.ReadFile(fname)
+	if err != nil {
+		return err
+	}
+	l := len(data)
+	for i := 0; i < l; i += CHUNK_SZ {
+		end := i + CHUNK_SZ
+		if end > l {
+			end = l
+		}
+		chunk := data[i:end]
+		buf := bytes.NewBuffer(chunk)
+		aud.Out <- *buf
+	}
+	return nil
+}
 
 func SpeechToText(audio *bytes.Buffer) (resultTxt string, err error) {
 	ctx := context.Background()

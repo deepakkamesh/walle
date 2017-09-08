@@ -40,4 +40,4 @@ if ! [ -z "$2" ]; then
 		rsync -avz -e "ssh -o StrictHostKeyChecking=no" --progress main $2:~/walle
 	fi
 fi
-
+exit $?
