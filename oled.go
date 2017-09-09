@@ -114,7 +114,7 @@ func (s *OLED) draw() {
 	if len(s.images) == 0 {
 		return
 	}
-	//s.oled.Clear()
+	s.oled.Clear()
 	w := s.oled.Buffer.Width
 	h := s.oled.Buffer.Height
 
@@ -128,6 +128,7 @@ func (s *OLED) draw() {
 	}
 	if err := s.oled.Display(); err != nil {
 		glog.Errorf("Failed to display:%v", err)
+		s.oled.Reset()
 	}
 }
 

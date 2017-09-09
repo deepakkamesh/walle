@@ -86,9 +86,6 @@ func (s *Emotion) Init(resPath string, r *raspi.Adaptor) error {
 	s.faceEmotions = faceEmotions
 
 	// Default expression.
-	/*s.term.Animate(s.termEmotions[EMOTION_NORM], CH, 200)
-	s.eye.Animate(s.faceEmotions[EMOTION_NORM].eye, 1000)
-	s.mouth.Animate(s.faceEmotions[EMOTION_NORM].mouth, 1000)*/
 	s.Expression(EMOTION_NORM, CH, 1000)
 
 	return nil
@@ -343,10 +340,12 @@ func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
 
+	_ = eyeBlink
+
 	return map[byte]Face{
 		EMOTION_NORM:      Face{eye, mouth},
 		EMOTION_SPEAK:     Face{eye, mouthSpeak},
-		EMOTION_BLINK:     Face{eyeBlink, mouthSmileSM},
+		EMOTION_BLINK:     Face{eyePupilMov, mouthSmileSM},
 		EMOTION_ANGRY:     Face{eye, mouthInvLG},
 		EMOTION_SAD:       Face{eye, mouthInvSM},
 		EMOTION_PUZZLED:   Face{eyePupilMov, mouthOpenLG},

@@ -49,14 +49,17 @@ type GAssistant struct {
 	StatusCh    chan embedded.ConverseResponse_EventType // Status channel signals end_of_utterance.
 }
 
-func New(audio *audio.Audio, secretsFile string, scope string) *GAssistant {
-
+func New() *GAssistant {
 	return &GAssistant{
-		audio:       audio,
-		secretsFile: secretsFile,
-		scopes:      strings.Split(scope, ","),
-		StatusCh:    make(chan embedded.ConverseResponse_EventType),
+		StatusCh: make(chan embedded.ConverseResponse_EventType),
 	}
+}
+
+func (s *GAssistant) Init(audio *audio.Audio, secretsFile string, scope string) error {
+	s.audio = audio
+	s.secretsFile = secretsFile
+	s.scopes = strings.Split(scope, ",")
+	return nil
 }
 
 func (s *GAssistant) loadTokenSource() error {

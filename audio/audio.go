@@ -21,32 +21,40 @@ type Audio struct {
 }
 
 func New() *Audio {
-	portaudio.Initialize()
+	return &Audio{
+		In:           make(chan bytes.Buffer, 10),
+		Out:          make(chan bytes.Buffer, 1000),
+		listenStop:   make(chan struct{}),
+		playbackStop: make(chan struct{}),
+	}
+}
+
+func (s *Audio) Init() error {
+	if err := portaudio.Initialize(); err != nil {
+		return err
+	}
 
 	// Open Input stream.
 	bufIn := make([]int16, 8196)
 	in, err := portaudio.OpenDefaultStream(1, 0, 16000, len(bufIn), bufIn)
 	if err != nil {
-		glog.Fatalf("Failed to connect to the set the default stream", err)
+		return err
 	}
+
+	s.streamIn = in
+	s.bufIn = bufIn
 
 	// Open Output stream.
 	bufOut := make([]int16, 799)
 	out, err := portaudio.OpenDefaultStream(0, 1, 16000, len(bufOut), bufOut)
 	if err != nil {
-		glog.Fatalf("Failed to connect to the set the default stream", err)
+		return err
 	}
 
-	return &Audio{
-		In:           make(chan bytes.Buffer, 10),
-		Out:          make(chan bytes.Buffer, 1000),
-		streamIn:     in,
-		streamOut:    out,
-		bufIn:        bufIn,
-		bufOut:       bufOut,
-		listenStop:   make(chan struct{}),
-		playbackStop: make(chan struct{}),
-	}
+	s.streamOut = out
+	s.bufOut = bufOut
+
+	return nil
 }
 
 func (s *Audio) Speak(text []byte) {

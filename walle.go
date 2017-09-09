@@ -2,8 +2,9 @@ package walle
 
 import (
 	"fmt"
-	"time"
 
+	"gobot.io/x/gobot"
+	"gobot.io/x/gobot/drivers/gpio"
 	"gobot.io/x/gobot/platforms/raspi"
 	embedded "google.golang.org/genproto/googleapis/assistant/embedded/v1alpha1"
 
@@ -19,32 +20,46 @@ const (
 )
 
 type WallEConfig struct {
-	Audio        *audio.Audio
-	GAssistant   *assistant.GAssistant
-	ResourcePath string
+	SecretsFile    string
+	AssistantScope string
+	ResourcePath   string
+	BtnPort        string
+	IRPort         string
 }
 
 type WallE struct {
-	audio      *audio.Audio          // PortAudio IO object.
+	audio      *audio.Audio
 	gAssistant *assistant.GAssistant // Google Assistant object.
 	emotion    *Emotion
+	btnChan    chan *gobot.Event
+	irChan     chan *gobot.Event
 	resPath    string
 }
 
 // New returns a new initialized WallE object.
-func New(c *WallEConfig) *WallE {
+func New() *WallE {
 
 	return &WallE{
-		gAssistant: c.GAssistant,
-		audio:      c.Audio,
+		audio:      audio.New(),
+		gAssistant: assistant.New(),
 		emotion:    NewEmotion(),
-		resPath:    c.ResourcePath,
 	}
 }
 
 // Init initializes WallE subsystems (gAssistant, Audio, ).
-func (s *WallE) Init() error {
+func (s *WallE) Init(c *WallEConfig) error {
+
+	s.resPath = c.ResourcePath
+	// Initialize Audio.
+	if err := s.audio.Init(); err != nil {
+		return err
+	}
 	s.audio.StartPlayback()
+
+	// Initialize Google Assistant.
+	if err := s.gAssistant.Init(s.audio, fmt.Sprintf("%v/%v", c.ResourcePath, c.SecretsFile), c.AssistantScope); err != nil {
+		return err
+	}
 	if err := s.gAssistant.Auth(); err != nil {
 		return err
 	}
@@ -55,9 +70,24 @@ func (s *WallE) Init() error {
 		return err
 	}
 
-	if err := s.emotion.Init(s.resPath, rpi); err != nil {
+	// Init Emotion controller.
+	if err := s.emotion.Init(c.ResourcePath, rpi); err != nil {
 		return fmt.Errorf("failed to init emotions:%v", err)
 	}
+
+	// Initialize pushbutton.
+	button := gpio.NewButtonDriver(rpi, c.BtnPort)
+	if err := button.Start(); err != nil {
+		return err
+	}
+	s.btnChan = button.Subscribe()
+
+	// Initialize IR Sensor.
+	ir := gpio.NewButtonDriver(rpi, c.IRPort)
+	if err := ir.Start(); err != nil {
+		return err
+	}
+	s.irChan = ir.Subscribe()
 
 	return nil
 }
@@ -66,7 +96,7 @@ func (s *WallE) Init() error {
 func (s *WallE) Run() {
 	for {
 		select {
-
+		// Events from termui for keyboard events.
 		case evt := <-s.emotion.term.EventCh:
 			if evt.Type == termbox.EventKey {
 				switch {
@@ -86,8 +116,14 @@ func (s *WallE) Run() {
 				}
 			}
 
-		default:
-			time.Sleep(10 * time.Millisecond)
+		case evt := <-s.btnChan:
+			glog.V(2).Infof("Got event from pushbutton %v-%v", evt.Name, evt.Data)
+			if evt.Name == "push" {
+				s.interactAI()
+			}
+
+		case evt := <-s.irChan:
+			glog.V(2).Infof("Got event from IR proximity sensor %v-%v", evt.Name, evt.Data)
 		}
 	}
 	return
@@ -97,8 +133,8 @@ func (s *WallE) Run() {
 // and analyzes it for sentiment.
 func (s *WallE) interactAI() {
 
-	//TODO: This is a workaround for Pi as the audio does not continue playing after first interaction. Needs
-	// investigation and fix.
+	//TODO: This is a workaround for Pi as the audio does not continue playing after
+	// first interaction. Needs investigation and fix.
 	s.audio.ResetPlayback()
 
 	go func() {
