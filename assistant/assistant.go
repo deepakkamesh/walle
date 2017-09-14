@@ -130,7 +130,6 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 	// Clean up before finishing up.
 	defer func() {
 		glog.V(2).Infof("End of conversation. Cleaning up.")
-		//	micStopCh <- struct{}{}
 		conn.Close()
 		ctx.Done()
 		canceler()
@@ -223,11 +222,10 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 		}
 
 		if resp.GetEventType() == embedded.ConverseResponse_END_OF_UTTERANCE {
-			glog.V(2).Info("Got end of utterance from Assistant.")
 			micStopCh <- struct{}{}
-			go func() { //TODO: Does this need to be in a go func.
-				s.StatusCh <- embedded.ConverseResponse_END_OF_UTTERANCE
-			}()
+			//	go func() { //TODO: Does this need to be in a go func?.Probably not.
+			s.StatusCh <- embedded.ConverseResponse_END_OF_UTTERANCE
+			//	}()
 		}
 		audioOut := resp.GetAudioOut()
 		if audioOut != nil {

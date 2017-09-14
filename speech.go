@@ -33,6 +33,8 @@ func TextToSpeech(fname string, aud *audio.Audio) error {
 		buf := bytes.NewBuffer(chunk)
 		aud.Out <- *buf
 	}
+	<-aud.StatusCh
+	glog.V(2).Info("Finished Text2Speech")
 	return nil
 }
 

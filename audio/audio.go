@@ -9,6 +9,10 @@ import (
 	"github.com/gordonklaus/portaudio"
 )
 
+const (
+	PLAYBACK_DONE byte = 1
+)
+
 type Audio struct {
 	In           chan bytes.Buffer
 	Out          chan bytes.Buffer
@@ -18,6 +22,7 @@ type Audio struct {
 	bufOut       []int16
 	listenStop   chan struct{}
 	playbackStop chan struct{}
+	StatusCh     chan byte
 }
 
 func New() *Audio {
@@ -26,6 +31,7 @@ func New() *Audio {
 		Out:          make(chan bytes.Buffer, 1000),
 		listenStop:   make(chan struct{}),
 		playbackStop: make(chan struct{}),
+		StatusCh:     make(chan byte),
 	}
 }
 
@@ -55,9 +61,6 @@ func (s *Audio) Init() error {
 	s.bufOut = bufOut
 
 	return nil
-}
-
-func (s *Audio) Speak(text []byte) {
 }
 
 func (s *Audio) StartPlayback() {
@@ -120,12 +123,18 @@ func (s *Audio) listen() {
 }
 
 func (s *Audio) playback() {
+	t := time.NewTimer(100 * time.Millisecond)
+	t.Stop()
+
 	if err := s.streamOut.Start(); err != nil {
 		glog.Fatalf("Failed to start audio out: %v", err)
 	}
 
 	for {
 		select {
+
+		case <-t.C:
+			s.StatusCh <- PLAYBACK_DONE
 
 		case <-s.playbackStop:
 			if err := s.streamOut.Stop(); err != nil {
@@ -134,6 +143,7 @@ func (s *Audio) playback() {
 			return
 
 		case out := <-s.Out:
+			t.Reset(100 * time.Millisecond)
 			glog.V(3).Infof("Audio chunk size: %v", out.Len())
 			if err := binary.Read(&out, binary.LittleEndian, s.bufOut); err != nil {
 				glog.Warningf("Failed to convert to binary %v", err)

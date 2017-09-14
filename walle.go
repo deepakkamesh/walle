@@ -2,6 +2,7 @@ package walle
 
 import (
 	"fmt"
+	"time"
 
 	"gobot.io/x/gobot"
 	"gobot.io/x/gobot/drivers/gpio"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	CH1 = '█'
-	CH  = '▒'
+	CH1            = '█'
+	CH             = '▒'
+	SLEEPY_TIMEOUT = 60
 )
 
 type WallEConfig struct {
@@ -94,6 +96,8 @@ func (s *WallE) Init(c *WallEConfig) error {
 
 // Run is the main event loop.
 func (s *WallE) Run() {
+	sleepyTimer := time.NewTimer(SLEEPY_TIMEOUT * time.Second)
+
 	for {
 		select {
 		// Events from termui for keyboard events.
@@ -119,11 +123,26 @@ func (s *WallE) Run() {
 		case evt := <-s.btnChan:
 			glog.V(2).Infof("Got event from pushbutton %v-%v", evt.Name, evt.Data)
 			if evt.Name == "push" {
+				sleepyTimer.Stop()
+				sleepyTimer.Reset((SLEEPY_TIMEOUT + 20) * time.Second) // Another 20s to account for interaction.
 				s.interactAI()
 			}
 
 		case evt := <-s.irChan:
 			glog.V(2).Infof("Got event from IR proximity sensor %v-%v", evt.Name, evt.Data)
+			if evt.Name == "release" {
+				glog.Info("here1")
+				sleepyTimer.Stop()
+				glog.Info("here2")
+				sleepyTimer.Reset((SLEEPY_TIMEOUT + 20) * time.Second)
+				s.interactAI()
+			}
+
+		case <-sleepyTimer.C:
+			if err := s.emotion.Expression(EMOTION_SLEEPY, CH, 500); err != nil {
+				glog.Warningf("Failed to display emotion: %v", err)
+			}
+			TextToSpeech(s.resPath+"/bored.raw", s.audio)
 		}
 	}
 	return
@@ -133,7 +152,7 @@ func (s *WallE) Run() {
 // and analyzes it for sentiment.
 func (s *WallE) interactAI() {
 
-	//TODO: This is a workaround for Pi as the audio does not continue playing after
+	//TODO: ResetPlayback() is workaround for Pi as the audio does not continue playing after
 	// first interaction. Needs investigation and fix.
 	s.audio.ResetPlayback()
 
@@ -141,19 +160,24 @@ func (s *WallE) interactAI() {
 		st := <-s.gAssistant.StatusCh
 		if st == embedded.ConverseResponse_END_OF_UTTERANCE {
 			glog.V(2).Infof("gAssisant sent END_OF_UTTERANCE")
-			s.emotion.Expression(EMOTION_SPEAK, CH, 200)
+			if err := s.emotion.Expression(EMOTION_SPEAK, CH, 100); err != nil {
+				glog.Warningf("Failed to display emotion: %v", err)
+			}
 		}
 	}()
 
-	s.emotion.Expression(EMOTION_BLINK, CH, 100)
+	if err := s.emotion.Expression(EMOTION_BLINK, CH, 100); err != nil {
+		glog.Warningf("Failed to display emotion: %v", err)
+	}
 	audioOut := s.gAssistant.ConverseWithAssistant()
-	s.emotion.Expression(EMOTION_THINKING, CH, 100)
 
 	// Convert assistant audio to text.
 	txt, err := SpeechToText(audioOut)
 	if err != nil {
 		glog.Errorf("Failed to recognize speech: %v", err)
-		s.emotion.Expression(EMOTION_SAD, CH, 900)
+		if err := s.emotion.Expression(EMOTION_SAD, CH, 9000); err != nil {
+			glog.Warningf("Failed to display emotion: %v", err)
+		}
 		return
 	}
 	glog.V(1).Infof("Google Assistant said: %v", txt)
@@ -162,12 +186,25 @@ func (s *WallE) interactAI() {
 	score, magnitude, err := AnalyzeSentiment(txt)
 	if err != nil {
 		glog.Errorf("Failed to analyze sentiment: %v", err)
-		s.emotion.Expression(EMOTION_SAD, CH, 900)
+		if err := s.emotion.Expression(EMOTION_SAD, CH, 9000); err != nil {
+			glog.Warningf("Failed to display emotion: %v", err)
+		}
 		return
 	}
 	glog.V(1).Infof("Sentiment Analysis - Score:%v Magnitude:%v", score, magnitude)
 
+	// This channel signifies the end of speech output from Audio.
+	<-s.audio.StatusCh
+	if err := s.emotion.Expression(EMOTION_THINKING, CH, 100); err != nil {
+		glog.Warningf("Failed to display emotion: %v", err)
+	}
+
 	// Select an emotion to display.
 	emotion := selectEmotion(score, txt)
-	s.emotion.Expression(emotion, CH, 300)
+	if err := s.emotion.Expression(emotion, CH, 500); err != nil {
+		glog.Warningf("Failed to display emotion: %v", err)
+	}
+
+	glog.V(2).Info("gAssistant interaction complete")
+
 }
