@@ -2,6 +2,10 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net/http"
+	_ "net/http"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/deepakkamesh/walle"
@@ -35,7 +39,10 @@ func main() {
 		BtnPort:        *btnPort,
 		IRPort:         *irPort,
 	}
-
+	// Profiler.
+	go func() {
+		log.Println(http.ListenAndServe("10.0.0.120:6060", nil))
+	}()
 	wallE := walle.New()
 
 	if err := wallE.Init(config); err != nil {

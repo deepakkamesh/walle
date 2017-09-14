@@ -34,7 +34,7 @@ func TextToSpeech(fname string, aud *audio.Audio) error {
 		aud.Out <- *buf
 	}
 	<-aud.StatusCh
-	glog.V(2).Info("Finished Text2Speech")
+	glog.V(3).Info("Finished Text2Speech")
 	return nil
 }
 

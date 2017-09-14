@@ -18,7 +18,7 @@ import (
 const (
 	CH1            = '█'
 	CH             = '▒'
-	SLEEPY_TIMEOUT = 60
+	SLEEPY_TIMEOUT = 30
 )
 
 type WallEConfig struct {
@@ -131,14 +131,14 @@ func (s *WallE) Run() {
 		case evt := <-s.irChan:
 			glog.V(2).Infof("Got event from IR proximity sensor %v-%v", evt.Name, evt.Data)
 			if evt.Name == "release" {
-				glog.Info("here1")
 				sleepyTimer.Stop()
-				glog.Info("here2")
 				sleepyTimer.Reset((SLEEPY_TIMEOUT + 20) * time.Second)
+				s.emotion.Expression(EMOTION_NORM, CH, 500)
 				s.interactAI()
 			}
 
 		case <-sleepyTimer.C:
+			glog.V(3).Info("Sleepy timer expired.")
 			if err := s.emotion.Expression(EMOTION_SLEEPY, CH, 500); err != nil {
 				glog.Warningf("Failed to display emotion: %v", err)
 			}
@@ -193,7 +193,8 @@ func (s *WallE) interactAI() {
 	}
 	glog.V(1).Infof("Sentiment Analysis - Score:%v Magnitude:%v", score, magnitude)
 
-	// This channel signifies the end of speech output from Audio.
+	// This channel signifies the end of speech output from Audio. Wait for
+	// audio playback completion before changing emotion.
 	<-s.audio.StatusCh
 	if err := s.emotion.Expression(EMOTION_THINKING, CH, 100); err != nil {
 		glog.Warningf("Failed to display emotion: %v", err)

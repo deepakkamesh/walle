@@ -123,7 +123,7 @@ func (s *Audio) listen() {
 }
 
 func (s *Audio) playback() {
-	t := time.NewTimer(100 * time.Millisecond)
+	t := time.NewTimer(900 * time.Millisecond)
 	t.Stop()
 
 	if err := s.streamOut.Start(); err != nil {
@@ -132,8 +132,11 @@ func (s *Audio) playback() {
 
 	for {
 		select {
-
+		// TODO: Sometimes this can be sent multiple times
+		// as the audio end detection logic is not great.
+		// Need a better way to detect end of playback.
 		case <-t.C:
+			glog.V(3).Infof("Finished audio playback session.")
 			s.StatusCh <- PLAYBACK_DONE
 
 		case <-s.playbackStop:
@@ -143,8 +146,9 @@ func (s *Audio) playback() {
 			return
 
 		case out := <-s.Out:
-			t.Reset(100 * time.Millisecond)
-			glog.V(3).Infof("Audio chunk size: %v", out.Len())
+			t.Stop()
+			t.Reset(900 * time.Millisecond)
+			glog.V(4).Infof("Audio chunk size: %v", out.Len())
 			if err := binary.Read(&out, binary.LittleEndian, s.bufOut); err != nil {
 				glog.Warningf("Failed to convert to binary %v", err)
 				continue

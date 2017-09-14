@@ -229,7 +229,7 @@ func (s *GAssistant) ConverseWithAssistant() *bytes.Buffer {
 		}
 		audioOut := resp.GetAudioOut()
 		if audioOut != nil {
-			glog.V(3).Infof("audio out from the assistant (%d bytes)\n", len(audioOut.AudioData))
+			glog.V(4).Infof("audio out from the assistant (%d bytes)\n", len(audioOut.AudioData))
 			signal := bytes.NewBuffer(audioOut.AudioData)
 			fullAudio.Write(audioOut.AudioData)
 			s.audio.Out <- *signal // Send audio to AudioOut Channel.

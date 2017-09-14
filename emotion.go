@@ -376,7 +376,7 @@ func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 		EMOTION_HAPPY:     Face{eyePupilDialated, mouthSmileLG},
 		EMOTION_SMILE_MED: Face{eye, mouthSmileSM},
 		EMOTION_THINKING:  Face{eyeSide2Side, mouthOpenSM},
-		EMOTION_SLEEPY:    Face{eyeClosedSM, mouthInvSM},
+		EMOTION_SLEEPY:    Face{eyeClosedSM, mouthOpenSM},
 	}, nil
 
 }
