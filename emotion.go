@@ -53,6 +53,9 @@ func (s *Emotion) Init(resPath string, r *raspi.Adaptor) error {
 	if err := s.term.Init(); err != nil {
 		return err
 	}
+	// TODO: get from flag.
+	// Disable terminal display.
+	s.term.Display(false)
 
 	// Initialize OLED displays.
 	lock := &sync.Mutex{}
@@ -134,8 +137,8 @@ func selectEmotion(score float32, txt string) byte {
 
 	// Override sentiment.
 	words := map[byte][]string{
-		EMOTION_SAD:   {"sorry", "apologies"},
-		EMOTION_HAPPY: {"joke", "laugh"},
+		EMOTION_PUZZLED: {"sorry", "apologies"},
+		EMOTION_HAPPY:   {"joke", "laugh"},
 	}
 
 	for emotion, wordList := range words {
@@ -249,6 +252,13 @@ func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
 	}
 
+	eyeUp, err := LoadImages(
+		resPath + "/eye_up.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
 	eyeDown, err := LoadImages(
 		resPath + "/eye_down.png",
 	)
@@ -258,6 +268,13 @@ func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 
 	eyeClosedLG, err := LoadImages(
 		resPath + "/eye_full_closed.png",
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
+	}
+
+	eyeClosedSMDown, err := LoadImages(
+		resPath + "/eye_half_closed_down.png",
 	)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Failed to load image resources: %v", err))
@@ -365,17 +382,20 @@ func loadFaceEmotion(resPath string) (map[byte]Face, error) {
 	_ = eyeBlink
 	_ = mouthInvSM
 	_ = eyeClosedLG
+	_ = eyeSide2Side
+	_ = eyeClosedSMDown
+	_ = eyeClosedSM
 
 	return map[byte]Face{
 		EMOTION_NORM:      Face{eye, mouth},
-		EMOTION_SPEAK:     Face{eyeSide2Side, mouthSpeak},
-		EMOTION_BLINK:     Face{eyePupilMov, mouthSmileSM},
-		EMOTION_ANGRY:     Face{eye, mouthInvLG},
-		EMOTION_SAD:       Face{eyeDown, mouthInvLG},
-		EMOTION_PUZZLED:   Face{eyePupilMov, mouthOpenLG},
+		EMOTION_SPEAK:     Face{eye, mouthSpeak},
+		EMOTION_BLINK:     Face{eyePupilMov, mouth},
+		EMOTION_ANGRY:     Face{eyeClosedSMDown, mouthInvLG},
+		EMOTION_SAD:       Face{eyeDown, mouthInvSM},
+		EMOTION_PUZZLED:   Face{eyeUp, mouthInvSM},
 		EMOTION_HAPPY:     Face{eyePupilDialated, mouthSmileLG},
 		EMOTION_SMILE_MED: Face{eye, mouthSmileSM},
-		EMOTION_THINKING:  Face{eyeSide2Side, mouthOpenSM},
+		EMOTION_THINKING:  Face{eyeUp, mouthOpenSM},
 		EMOTION_SLEEPY:    Face{eyeClosedSM, mouthOpenSM},
 	}, nil
 

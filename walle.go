@@ -18,7 +18,7 @@ import (
 const (
 	CH1            = '█'
 	CH             = '▒'
-	SLEEPY_TIMEOUT = 30
+	SLEEPY_TIMEOUT = 60
 )
 
 type WallEConfig struct {
@@ -52,6 +52,7 @@ func New() *WallE {
 func (s *WallE) Init(c *WallEConfig) error {
 
 	s.resPath = c.ResourcePath
+
 	// Initialize Audio.
 	if err := s.audio.Init(); err != nil {
 		return err

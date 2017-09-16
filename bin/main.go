@@ -19,6 +19,7 @@ func main() {
 	resourcesPath := flag.String("resources_path", "../resources", "Path to resources folder")
 	btnPort := flag.String("button_pin", "40", "Pin number for push button")
 	irPort := flag.String("ir_pin", "38", "Pin number for IR")
+	enProfiler := flag.Bool("en_profile", true, "enable profiler")
 
 	flag.Parse()
 
@@ -39,16 +40,18 @@ func main() {
 		BtnPort:        *btnPort,
 		IRPort:         *irPort,
 	}
-	// Profiler.
-	go func() {
-		log.Println(http.ListenAndServe("10.0.0.120:6060", nil))
-	}()
-	wallE := walle.New()
 
+	// Profiler.
+	if *enProfiler {
+		go func() {
+			log.Println(http.ListenAndServe("10.0.0.120:6060", nil))
+		}()
+	}
+
+	wallE := walle.New()
 	if err := wallE.Init(config); err != nil {
 		glog.Fatalf("WallE initialization failed %v", err)
 	}
-
 	wallE.Run()
 
 	// Needed so termbox can cleanup.

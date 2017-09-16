@@ -31,7 +31,7 @@ func New() *Audio {
 		Out:          make(chan bytes.Buffer, 1000),
 		listenStop:   make(chan struct{}),
 		playbackStop: make(chan struct{}),
-		StatusCh:     make(chan byte),
+		StatusCh:     make(chan byte, 10), // See TODO:(end_detect) below.
 	}
 }
 
@@ -132,9 +132,10 @@ func (s *Audio) playback() {
 
 	for {
 		select {
-		// TODO: Sometimes this can be sent multiple times
+		// TODO:(end_detect) Sometimes this can be sent multiple times
 		// as the audio end detection logic is not great.
-		// Need a better way to detect end of playback.
+		// Need a better way to detect end of playback. Workaround
+		// is to make StatusCh a buffered channel.
 		case <-t.C:
 			glog.V(3).Infof("Finished audio playback session.")
 			s.StatusCh <- PLAYBACK_DONE

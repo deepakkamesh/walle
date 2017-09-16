@@ -120,7 +120,6 @@ func (s *OLED) draw() {
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			s.oled.Set(x, y, 0)
 			if s.images[s.curr].Ymax > y && s.images[s.curr].Xmax > x && s.images[s.curr].data[y][x] {
 				s.oled.Set(x, y, 1)
 			}
@@ -128,6 +127,7 @@ func (s *OLED) draw() {
 	}
 	if err := s.oled.Display(); err != nil {
 		glog.Errorf("Failed to display:%v", err)
+		s.oled.Clear()
 		s.oled.Reset()
 	}
 }
@@ -159,6 +159,7 @@ func (s *OLED) Run() error {
 
 			case <-s.quitLoop:
 				s.oled.Clear()
+				s.oled.Off()
 				return
 			}
 		}
@@ -168,11 +169,7 @@ func (s *OLED) Run() error {
 }
 
 func (s *OLED) Quit() {
-	// Called in a goroutine because of potential deadlock with
-	// poller loop.
-	go func() {
-		s.quitLoop <- struct{}{}
-	}()
+	s.quitLoop <- struct{}{}
 }
 
 // LoadImages loads images as a image struct and returns a list.
